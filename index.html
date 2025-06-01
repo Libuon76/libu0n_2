@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ドット絵風 数字当てゲーム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+    
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="https://placehold.co/180x180/3b82f6/ffffff?text=APP">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="数字当て">
+
+    <style>
+        /* デフォルトフォント (英語用) */
+        body {
+            font-family: 'Press Start 2P', cursive;
+            image-rendering: pixelated; /* 画像のスケーリング時にピクセル感を維持 */
+        }
+        /* 日本語フォントを適用するクラス */
+        body.font-japanese-pixel {
+            font-family: 'DotGothic16', cursive;
+        }
+
+        /* 各ページを非表示にするためのユーティリティクラス */
+        .hidden-page {
+            display: none;
+        }
+        /* ボタンの基本的なスタイル */
+        .btn-base {
+            transition: all 0.1s ease-out; /* 短い遷移時間でよりゲームらしく */
+            border-bottom-width: 6px; /* 3D効果のベースを強調 */
+            border-right-width: 6px; /* 3D効果のベースを強調 */
+            border-radius: 0.25rem; /* わずかに丸みを帯びた角 */
+        }
+        /* プライマリボタンのホバー/アクティブ効果 */
+        .btn-primary {
+            background-color: #3b82f6; /* blue-500 */
+            border-color: #1e40af; /* blue-800 */
+        }
+        .btn-primary:hover {
+            transform: translateY(2px) translateX(2px); /* 押された感じ */
+            box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3); /* ブロック状の影 */
+            border-bottom-width: 4px;
+            border-right-width: 4px;
+        }
+        .btn-primary:active {
+            transform: translateY(4px) translateX(4px); /* より深く押された感じ */
+            box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3); /* より小さい影 */
+            border-bottom-width: 0px;
+            border-right-width: 0px;
+        }
+        /* セカンダリボタンのホバー/アクティブ効果 */
+        .btn-secondary {
+            background-color: #a855f7; /* purple-500 */
+            border-color: #6b21a8; /* purple-800 */
+        }
+        .btn-secondary:hover {
+            transform: translateY(2px) translateX(2px); /* 押された感じ */
+            box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3); /* ブロック状の影 */
+            border-bottom-width: 4px;
+            border-right-width: 4px;
+        }
+        .btn-secondary:active {
+            transform: translateY(4px) translateX(4px); /* より深く押された感じ */
+            box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3); /* より小さい影 */
+            border-bottom-width: 0px;
+            border-right-width: 0px;
+        }
+        /* ルールボタンのスタイル (新しい色) */
+        .btn-rules {
+            background-color: #f59e0b; /* amber-500 */
+            border-color: #b45309; /* amber-700 */
+        }
+        .btn-rules:hover {
+            transform: translateY(2px) translateX(2px);
+            box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3);
+            border-bottom-width: 4px;
+            border-right-width: 4px;
+        }
+        .btn-rules:active {
+            transform: translateY(4px) translateX(4px);
+            box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3);
+            border-bottom-width: 0px;
+            border-right-width: 0px;
+        }
+
+        /* 入力フィールドのフォーカスエフェクト */
+        input:focus, select:focus {
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5); /* blue-500 with opacity */
+            outline: none; /* デフォルトのアウトラインを削除 */
+            border-color: #3b82f6; /* blue-500 */
+        }
+        /* テキストシャドウを強調 */
+        .text-shadow-custom {
+            text-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5); /* より強い影 */
+        }
+        /* フェードインアニメーション */
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* 全体のコンテナのボーダーを強調 */
+        .game-container {
+            border: 8px solid #4f46e5; /* indigo-600 */
+            border-radius: 0.5rem; /* わずかに丸みを帯びた角 */
+            box-shadow: 10px 10px 0px rgba(0, 0, 0, 0.4); /* 強い影 */
+            /* PC版向けに最大幅を調整 */
+            max-width: 600px; /* スマートフォン向け */
+        }
+
+        /* PC (md: breakpoint) 以上の画面サイズで最大幅を広げる */
+        @media (min-width: 768px) { /* md breakpoint */
+            .game-container {
+                max-width: 800px; /* PC向けに広げる */
+                padding: 2.5rem; /* パディングも少し増やす */
+            }
+            #mainTopPageTitle {
+                font-size: 4.5rem; /* PC版ではタイトルを少し大きく */
+            }
+            #settingsPageTitle, #gamePageTitle, #resultsPageTitle, #rulesPageTitle { /* rulesPageTitleを追加 */
+                font-size: 3rem; /* PC版ではページタイトルを少し大きく */
+            }
+            #message {
+                font-size: 1.875rem; /* PC版ではメッセージを少し大きく */
+            }
+            .text-xl {
+                font-size: 1.25rem; /* PC版では通常のテキストを少し大きく */
+            }
+        }
+
+        /* メッセージ表示のフォントサイズを調整 */
+        #message {
+            font-size: 1.5rem; /* 24px */
+            line-height: 2rem; /* 32px */
+            font-weight: bold;
+            text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.2);
+        }
+        /* プレイヤー名入力フィールドの調整 */
+        .player-name-input {
+            border-radius: 0.25rem; /* 角を少し丸める */
+        }
+        /* ラジオボタンとチェックボックスのスタイルを調整 */
+        .form-radio {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            display: inline-block;
+            position: relative;
+            vertical-align: middle;
+            cursor: pointer;
+            width: 1.25rem; /* 20px */
+            height: 1.25rem; /* 20px */
+            border: 2px solid #3b82f6; /* blue-500 */
+            background-color: #e0f2fe; /* blue-50 */
+            border-radius: 0.25rem; /* 四角いラジオボタン */
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .form-radio:checked {
+            background-color: #3b82f6; /* blue-500 */
+            border-color: #1e40af; /* blue-800 */
+        }
+        .form-radio:checked::after {
+            content: '';
+            display: block;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0.5rem; /* 8px */
+            height: 0.5rem; /* 8px */
+            background: white;
+            border-radius: 0.125rem; /* ドット */
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-100 to-purple-200 min-h-screen flex items-center justify-center p-4">
+
+    <div id="main-top-page" class="bg-white p-8 rounded-3xl shadow-2xl w-full text-center game-container">
+        <h1 id="mainTopPageTitle" class="text-5xl font-extrabold text-gray-800 mb-8 animate-pulse text-shadow-custom">数字当てゲーム</h1>
+        <p id="mainTopPageMessage" class="text-xl text-gray-700 mb-8">シンプルだけど奥深い、数字当てゲームへようこそ！</p>
+        
+        <div class="mb-6 text-left">
+            <label id="languageSettingsLabelMain" for="languageSelectMain" class="block text-gray-700 text-sm font-bold mb-2">言語設定:</label>
+            <select id="languageSelectMain"
+                    class="w-full p-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-lg text-gray-700">
+                <option value="ja">日本語</option>
+                <option value="en">English</option>
+            </select>
+        </div>
+
+        <button id="goToSettingsButton"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 btn-base btn-primary mb-4">
+            ゲームを始める
+        </button>
+        <button id="goToRulesButton"
+                class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-4 px-6 btn-base btn-rules">
+            ルール説明
+        </button>
+    </div>
+
+    <div id="start-page" class="hidden-page bg-white p-8 rounded-3xl shadow-2xl w-full text-center game-container">
+        <h1 id="settingsPageTitle" class="text-4xl font-extrabold text-gray-800 mb-6 text-shadow-custom">ゲーム設定</h1>
+
+        <div class="mb-6 text-left">
+            <label id="playModeLabel" class="block text-gray-700 text-sm font-bold mb-2">プレイモード:</label>
+            <div class="flex flex-col space-y-2">
+                <label class="inline-flex items-center">
+                    <input type="radio" name="playMode" value="multiplayer" class="form-radio text-blue-600 h-5 w-5" checked>
+                    <span class="ml-2 text-lg text-gray-700" data-lang-key="multiplayerMode">みんなでプレイ</span>
+                </label>
+                <label class="inline-flex items-center">
+                    <input type="radio" name="playMode" value="cpu" class="form-radio text-blue-600 h-5 w-5">
+                    <span class="ml-2 text-lg text-gray-700" data-lang-key="cpuMode">一人でプレイ (CPUと対戦)</span>
+                </label>
+                <label class="inline-flex items-center">
+                    <input type="radio" name="playMode" value="singleplayer" class="form-radio text-blue-600 h-5 w-5">
+                    <span class="ml-2 text-lg text-gray-700" data-lang-key="singleplayerMode">一人でプレイ (練習モード)</span>
+                </label>
+            </div>
+        </div>
+
+        <div id="playersContainer" class="mb-4 text-left">
+            <label id="playerNameLabel" class="block text-gray-700 text-sm font-bold mb-2">プレイヤー名:</label>
+            <div class="flex items-center mb-2">
+                <input type="text" class="player-name-input w-full p-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-lg text-gray-700" value="プレイヤー1">
+                <button class="remove-player-btn ml-2 p-2 bg-red-500 text-white rounded-full text-sm font-bold hidden">-</button>
+            </div>
+            <div class="flex items-center mb-2">
+                <input type="text" class="player-name-input w-full p-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-lg text-gray-700" value="プレイヤー2">
+                <button class="remove-player-btn ml-2 p-2 bg-red-500 text-white rounded-full text-sm font-bold hidden">-</button>
+            </div>
+        </div>
+        <button id="addPlayerButton" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transform transition duration-300 ease-in-out hover:scale-105 mb-6" data-lang-key="addPlayerButton">
+            + プレイヤーを追加
+        </button>
+
+        <div class="mb-4 text-left">
+            <label id="numberRangeLabel" for="numberRange" class="block text-gray-700 text-sm font-bold mb-2">数字の範囲:</label>
+            <select id="numberRange"
+                    class="w-full p-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-lg text-gray-700">
+                <option value="100" data-lang-key="range100">1〜100</option>
+                <option value="500" data-lang-key="range500">1〜500</option>
+                <option value="1000" data-lang-key="range1000">1〜1000</option>
+            </select>
+        </div>
+
+        <div class="mb-4 text-left">
+            <label id="attemptLimitLabel" for="attemptLimitType" class="block text-gray-700 text-sm font-bold mb-2">試行回数:</label>
+            <select id="attemptLimitType"
+                    class="w-full p-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-lg text-gray-700">
+                <option value="unlimited" data-lang-key="unlimitedAttempts">当てるまで (制限なし)</option>
+                <option value="fixed" data-lang-key="fixedAttempts">回数を指定</option>
+            </select>
+            <input type="number" id="customAttemptLimit" value="15" min="1"
+                   class="w-full p-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-lg text-gray-700 mt-2"
+                   style="display: none;" data-lang-placeholder-key="customAttemptPlaceholder">
+        </div>
+
+        <div class="mb-6 text-left">
+            <label id="totalRoundsLabel" for="totalRounds" class="block text-gray-700 text-sm font-bold mb-2">何回戦やるか:</label>
+            <select id="totalRounds"
+                    class="w-full p-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-lg text-gray-700">
+                <option value="1" data-lang-key="round1">1回戦</option>
+                <option value="3" data-lang-key="round3">3回戦</option>
+                <option value="5" data-lang-key="round5">5回戦</option>
+            </select>
+        </div>
+
+        <div class="mb-4 text-left">
+            <label id="volumeSettingsLabel" for="masterVolume" class="block text-gray-700 text-sm font-bold mb-2">音量設定:</label>
+            <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="0.5"
+                   class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer">
+        </div>
+
+        <div class="mb-6 text-left flex items-center">
+            <input type="checkbox" id="bgmToggle" class="form-radio text-blue-600 h-5 w-5" checked>
+            <label id="bgmToggleLabel" for="bgmToggle" class="ml-2 text-lg text-gray-700" data-lang-key="bgmToggleLabel">BGMを再生</label>
+        </div>
+
+        <p id="startPageMessage" class="text-red-600 text-sm mb-4" style="display: none;"></p>
+
+        <button id="startGameButton"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 btn-base btn-primary" data-lang-key="startGameButtonSettings">
+            ゲーム開始
+        </button>
+    </div>
+
+    <div id="game-page" class="hidden-page bg-white p-8 rounded-3xl shadow-2xl w-full text-center game-container">
+        <h1 id="gamePageTitle" class="text-4xl font-extrabold text-gray-800 mb-4 text-shadow-custom">数字当てゲーム</h1>
+        <p id="roundDisplay" class="text-xl font-bold text-gray-700 mb-2">第1回戦</p>
+        <p id="currentPlayerDisplay" class="text-3xl font-bold text-blue-700 mb-6">プレイヤー1の番です</p>
+        <p id="rangeInfo" class="text-lg text-gray-600 mb-4">(1から100までの数字)</p>
+
+        <div class="mb-6">
+            <input type="number" id="guessInput" placeholder="あなたの予想を入力"
+                   class="w-full p-4 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-4 focus:ring-blue-200 text-lg text-gray-700 transition duration-300 ease-in-out transform hover:scale-105" data-lang-placeholder-key="guessInputPlaceholder">
+        </div>
+
+        <button id="submitGuess"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 btn-base btn-primary mb-4" data-lang-key="submitGuessButton">
+            予想を送信
+        </button>
+
+        <p id="message" class="text-2xl font-extrabold text-gray-700 mb-6"></p>
+
+        <button id="nextRoundButton"
+                class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 btn-base btn-secondary"
+                style="display: none;" data-lang-key="nextRoundButton">
+            次へ
+        </button>
+    </div>
+
+    <div id="results-page" class="hidden-page bg-white p-8 rounded-3xl shadow-2xl w-full text-center game-container">
+        <h1 id="resultsPageTitle" class="text-4xl font-extrabold text-gray-800 mb-6 text-shadow-custom">結果発表！</h1>
+        <div id="roundResultsList" class="text-left mb-6">
+            </div>
+        <div id="overallScores" class="text-left mb-6 text-xl font-bold text-gray-800">
+            </div>
+        <p id="overallWinner" class="text-3xl font-extrabold text-green-700 mb-8"></p>
+
+        <button id="playAgainButton"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 btn-base btn-primary" data-lang-key="playAgainButton">
+            もう一度プレイ
+        </button>
+    </div>
+
+    <div id="rules-page" class="hidden-page bg-white p-8 rounded-3xl shadow-2xl w-full text-center game-container">
+        <h1 id="rulesPageTitle" class="text-4xl font-extrabold text-gray-800 mb-6 text-shadow-custom">ルール説明</h1>
+        <div id="rulesContent" class="text-left text-lg text-gray-700 mb-8 leading-relaxed">
+            <p class="mb-4">このゲームは、隠された数字を当てるシンプルなゲームです。</p>
+            <ul class="list-disc list-inside mb-4">
+                <li class="mb-2">まず、1から設定された範囲（例: 100）までの数字の中から、秘密の数字がランダムに選ばれます。</li>
+                <li class="mb-2">プレイヤーは、その秘密の数字を予想して入力します。</li>
+                <li class="mb-2">予想が秘密の数字よりも「大きい」か「小さい」かがヒントとして表示されます。</li>
+                <li class="mb-2">ヒントを参考にしながら、秘密の数字を当てましょう！</li>
+                <li class="mb-2">試行回数に制限がある場合、その回数以内に当てられなければ引き分けとなります。</li>
+                <li class="mb-2">複数回戦を設定している場合、各回戦の勝敗に応じて総合スコアが計算されます。</li>
+            </ul>
+            <p>さあ、最高の数字当てマスターを目指しましょう！</p>
+        </div>
+        <button id="backToMainButton"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 btn-base btn-primary">
+            戻る
+        </button>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registered: ', registration);
+                    })
+                    .catch(registrationError => {
+                        console.log('ServiceWorker registration failed: ', registrationError);
+                    });
+            });
+        }
+    </script>
+    
+    <script>
+        // ゲームのグローバル状態
+        let playMode = 'multiplayer'; // 'multiplayer', 'cpu', 'singleplayer'
+        let players = []; // プレイヤー名を格納する配列
+        let selectedRangeMax = 100; // 数字の範囲の最大値
+        let totalRounds = 1; // 総回戦数
+        let currentRound = 0; // 現在の回戦数 (0から開始し、ゲーム開始時に1になる)
+
+        let randomNumber; // 当てる秘密の数字
+        let totalAttemptsThisRound; // 現在の回戦での全体の試行回数
+        let currentPlayerIndex; // 現在のプレイヤーのインデックス
+
+        let attemptLimitType = 'unlimited'; // 'unlimited' または 'fixed'
+        let currentMaxAttemptsPerRound = Infinity; // 現在のラウンドの試行回数上限 (Infinityは制限なし)
+        const defaultFixedAttempts = 15; // 固定回数モードのデフォルト値
+
+        let playerScores = {}; // 各プレイヤーのスコアを格納するオブジェクト { "プレイヤー名": スコア }
+        let roundResults = []; // 各ラウンドの結果を保存する配列
+
+        // CPUの思考用変数 (二分探索)
+        let cpuMinRange;
+        let cpuMaxRange;
+
+        // 言語設定
+        let currentLanguage = 'ja'; // デフォルト言語
+        const textStrings = {
+            ja: {
+                gameTitle: "数字当てゲーム",
+                welcomeMessage: "シンプルだけど奥深い、数字当てゲームへようこそ！",
+                startGameButton: "ゲームを始める",
+                rulesButton: "ルール説明", // New
+                settingsTitle: "ゲーム設定",
+                playModeLabel: "プレイモード:",
+                multiplayerMode: "みんなでプレイ",
+                cpuMode: "一人でプレイ (CPUと対戦)",
+                singleplayerMode: "一人でプレイ (練習モード)",
+                playerNameLabel: "プレイヤー名:",
+                addPlayerButton: "+ プレイヤーを追加",
+                numberRangeLabel: "数字の範囲:",
+                range100: "1〜100",
+                range500: "1〜500",
+                range1000: "1〜1000",
+                attemptLimitLabel: "試行回数:",
+                unlimitedAttempts: "当てるまで (制限なし)",
+                fixedAttempts: "回数を指定",
+                customAttemptPlaceholder: "回数を入力",
+                totalRoundsLabel: "何回戦やるか:",
+                round1: "1回戦",
+                round3: "3回戦",
+                round5: "5回戦",
+                startGameButtonSettings: "ゲーム開始",
+                settingsErrorMessageMultiplayer: "「みんなでプレイ」を選択した場合、少なくとも2人のプレイヤーが必要です。",
+                settingsErrorMessageAttempts: "試行回数は1以上の数字を入力してください。",
+                roundDisplayPrefix: "第",
+                roundDisplaySuffix: "回戦",
+                currentPlayerTurnSuffix: "の番です",
+                rangeInfoPrefix: "(1から",
+                rangeInfoSuffix: "までの数字)",
+                guessInputPlaceholder: "あなたの予想を入力",
+                submitGuessButton: "予想を送信",
+                messageInvalidInput: (max) => `1から${max}までの有効な数字を入力してください。`,
+                messageCorrect: (player, attempts, num) => `おめでとうございます！${player}が${attempts}回で${num}を当てました！`,
+                messageAttemptsExceeded: (num) => `残念！試行回数が上限に達しました。正解は${num}でした。この回戦は引き分けです。`,
+                messageTooHigh: (remaining) => `もっと小さい数字です！${remaining}`,
+                messageTooLow: (remaining) => `もっと大きい数字です！${remaining}`,
+                messageRemainingAttempts: (remaining) => `残り${remaining}回。`,
+                roundEnd: "ラウンド終了！",
+                cpuGuess: (guess) => `CPUの予想: ${guess}`,
+                cpuCorrect: (attempts, num) => `残念！CPUが${attempts}回で${num}を当てました！`,
+                resultsTitle: "結果発表！",
+                roundResult: (round, winner, attempts, num) => `<strong>第${round}回戦:</strong> ${winner} の勝利！ (${attempts}回で${num}を当てました)`,
+                roundResultDraw: (round, num) => `<strong>第${round}回戦:</strong> 引き分け (正解は ${num} でした)`,
+                overallScoreTitle: "総合スコア:",
+                overallWinner: (winner) => `${winner}の総合優勝です！`,
+                overallDraw: "総合結果は引き分けです！",
+                singleplayerRecordTitle: "あなたの記録:",
+                singleplayerTotalAttempts: (attempts) => `総試行回数: ${attempts}回`,
+                singleplayerCorrectGuesses: (count) => `正解回数: ${count}回`,
+                singleplayerGameEnd: "ゲーム終了！お疲れ様でした！",
+                playAgainButton: "もう一度プレイ",
+                volumeSettingsLabel: "音量設定:",
+                languageSettingsLabel: "言語設定:",
+                bgmToggleLabel: "BGMを再生",
+                rulesPageTitle: "ルール説明", // New
+                rulesContent: `
+                    <p class="mb-4">このゲームは、隠された数字を当てるシンプルなゲームです。</p>
+                    <ul class="list-disc list-inside mb-4">
+                        <li class="mb-2">まず、1から設定された範囲（例: 100）までの数字の中から、秘密の数字がランダムに選ばれます。</li>
+                        <li class="mb-2">プレイヤーは、その秘密の数字を予想して入力します。</li>
+                        <li class="mb-2">予想が秘密の数字よりも「大きい」か「小さい」かがヒントとして表示されます。</li>
+                        <li class="mb-2">ヒントを参考にしながら、秘密の数字を当てましょう！</li>
+                        <li class="mb-2">試行回数に制限がある場合、その回数以内に当てられなければ引き分けとなります。</li>
+                        <li class="mb-2">複数回戦を設定している場合、各回戦の勝敗に応じて総合スコアが計算されます。</li>
+                    </ul>
+                    <p>さあ、最高の数字当てマスターを目指しましょう！</p>
+                `, // New
+                backButton: "戻る", // New
+            },
+            en: {
+                gameTitle: "Guess the Number Game",
+                welcomeMessage: "Welcome to the simple yet profound Guess the Number Game!",
+                startGameButton: "Start Game",
+                rulesButton: "Rules", // New
+                settingsTitle: "Game Settings",
+                playModeLabel: "Play Mode:",
+                multiplayerMode: "Multiplayer",
+                cpuMode: "Single Player (vs CPU)",
+                singleplayerMode: "Single Player (Practice)",
+                playerNameLabel: "Player Name:",
+                addPlayerButton: "+ Add Player",
+                numberRangeLabel: "Number Range:",
+                range100: "1〜100",
+                range500: "1〜500",
+                range1000: "1〜1000",
+                attemptLimitLabel: "Attempt Limit:",
+                unlimitedAttempts: "Until Correct (Unlimited)",
+                fixedAttempts: "Set Limit",
+                customAttemptPlaceholder: "Enter count",
+                totalRoundsLabel: "Number of Rounds:",
+                round1: "1 Round",
+                round3: "3 Rounds",
+                round5: "5 Rounds",
+                startGameButtonSettings: "Start Game",
+                settingsErrorMessageMultiplayer: "For 'Multiplayer', at least 2 players are required.",
+                settingsErrorMessageAttempts: "Attempt count must be 1 or more.",
+                roundDisplayPrefix: "Round ",
+                roundDisplaySuffix: "",
+                currentPlayerTurnSuffix: "'s Turn",
+                rangeInfoPrefix: "(Numbers from 1 to ",
+                rangeInfoSuffix: ")",
+                guessInputPlaceholder: "Enter your guess",
+                submitGuessButton: "Submit Guess",
+                messageInvalidInput: (max) => `Please enter a valid number between 1 and ${max}.`,
+                messageCorrect: (player, attempts, num) => `Congratulations! ${player} guessed ${num} in ${attempts} attempts!`,
+                messageTooHigh: (remaining) => `Too high!${remaining}`,
+                messageTooLow: (remaining) => `Too low!${remaining}`,
+                messageRemainingAttempts: (remaining) => ` (${remaining} attempts remaining)`,
+                roundEnd: "Round End!",
+                cpuGuess: (guess) => `CPU's guess: ${guess}`,
+                cpuCorrect: (attempts, num) => `Too bad! CPU guessed ${num} in ${attempts} attempts!`,
+                resultsTitle: "Results!",
+                roundResult: (round, winner, attempts, num) => `<strong>Round ${round}:</strong> ${winner} wins! (${attempts} attempts, number was ${num})`,
+                roundResultDraw: (round, num) => `<strong>Round ${round}:</strong> Draw (The number was ${num})`,
+                overallScoreTitle: "Overall Score:",
+                overallWinner: (winner) => `${winner} is the overall winner!`,
+                overallDraw: "Overall result is a draw!",
+                singleplayerRecordTitle: "Your Record:",
+                singleplayerTotalAttempts: (attempts) => `Total Attempts: ${attempts}`,
+                singleplayerCorrectGuesses: (count) => `Correct Guesses: ${count}`,
+                singleplayerGameEnd: "Game Over! Good job!",
+                playAgainButton: "Play Again",
+                volumeSettingsLabel: "Volume Settings:",
+                languageSettingsLabel: "Language Settings:",
+                bgmToggleLabel: "Play BGM",
+                rulesPageTitle: "Rules Explanation", // New
+                rulesContent: `
+                    <p class="mb-4">This is a simple game where you guess a hidden number.</p>
+                    <ul class="list-disc list-inside mb-4">
+                        <li class="mb-2">First, a secret number is randomly chosen from 1 to the set range (e.g., 100).</li>
+                        <li class="mb-2">Players guess the secret number and enter their guess.</li>
+                        <li class="mb-2">A hint will be displayed indicating if your guess is "Too High" or "Too Low".</li>
+                        <li class="mb-2">Use the hints to find the secret number!</li>
+                        <li class="mb-2">If there's an attempt limit, failing to guess within that limit results in a draw.</li>
+                        <li class="mb-2">If multiple rounds are set, overall scores are calculated based on wins and losses in each round.</li>
+                    </ul>
+                    <p>Aim to become the ultimate number guessing master!</p>
+                `, // New
+                backButton: "Back", // New
+            }
+        };
+
+        // Tone.js関連
+        let correctSynth;
+        let incorrectSynth;
+        let roundEndSynth;
+        let masterVolumeNode;
+        let bgmSynth; // BGM用シンセ
+        let bgmSequence; // BGM用シーケンス
+        let isBGMPlaying = false; // BGM再生状態
+
+        // HTML要素の取得
+        // トップページ要素
+        const mainTopPage = document.getElementById('main-top-page');
+        const mainTopPageTitle = document.getElementById('mainTopPageTitle');
+        const mainTopPageMessage = document.getElementById('mainTopPageMessage');
+        const goToSettingsButton = document.getElementById('goToSettingsButton');
+        const goToRulesButton = document.getElementById('goToRulesButton'); // New
+        const languageSettingsLabelMain = document.getElementById('languageSettingsLabelMain'); // トップページ用の言語設定ラベル
+        const languageSelectMain = document.getElementById('languageSelectMain'); // トップページ用の言語選択
+
+        // ゲーム設定ページ要素 (以前のstart-page)
+        const startPage = document.getElementById('start-page');
+        const settingsPageTitle = document.getElementById('settingsPageTitle');
+        const playModeLabel = document.getElementById('playModeLabel');
+        const playModeRadios = document.querySelectorAll('input[name="playMode"]');
+        const multiplayerModeSpan = document.querySelector('span[data-lang-key="multiplayerMode"]');
+        const cpuModeSpan = document.querySelector('span[data-lang-key="cpuMode"]');
+        const singleplayerModeSpan = document.querySelector('span[data-lang-key="singleplayerMode"]');
+        const playersContainer = document.getElementById('playersContainer');
+        const playerNameLabel = document.getElementById('playerNameLabel');
+        const addPlayerButton = document.getElementById('addPlayerButton');
+        const numberRangeLabel = document.getElementById('numberRangeLabel');
+        const numberRangeSelect = document.getElementById('numberRange');
+        const range100Option = document.querySelector('option[data-lang-key="range100"]');
+        const range500Option = document.querySelector('option[data-lang-key="range500"]');
+        const range1000Option = document.querySelector('option[data-lang-key="range1000"]');
+        const attemptLimitLabel = document.getElementById('attemptLimitLabel');
+        const attemptLimitTypeSelect = document.getElementById('attemptLimitType');
+        const unlimitedAttemptsOption = document.querySelector('option[data-lang-key="unlimitedAttempts"]');
+        const fixedAttemptsOption = document.querySelector('option[data-lang-key="fixedAttempts"]');
+        const customAttemptLimitInput = document.getElementById('customAttemptLimit');
+        const totalRoundsLabel = document.getElementById('totalRoundsLabel');
+        const totalRoundsSelect = document.getElementById('totalRounds');
+        const round1Option = document.querySelector('option[data-lang-key="round1"]');
+        const round3Option = document.querySelector('option[data-lang-key="round3"]');
+        const round5Option = document.querySelector('option[data-lang-key="round5"]');
+        const startGameButtonSettings = document.getElementById('startGameButton');
+        const startPageMessage = document.getElementById('startPageMessage');
+        const volumeSettingsLabel = document.getElementById('volumeSettingsLabel');
+        const masterVolumeInput = document.getElementById('masterVolume');
+        const bgmToggle = document.getElementById('bgmToggle'); // BGMトグル
+        const bgmToggleLabel = document.getElementById('bgmToggleLabel'); // BGMトグルラベル
+
+
+        // ゲームページ要素
+        const gamePage = document.getElementById('game-page');
+        const gamePageTitle = document.getElementById('gamePageTitle');
+        const roundDisplay = document.getElementById('roundDisplay');
+        const currentPlayerDisplay = document.getElementById('currentPlayerDisplay');
+        const rangeInfo = document.getElementById('rangeInfo');
+        const guessInput = document.getElementById('guessInput');
+        const submitGuessButton = document.getElementById('submitGuess');
+        const messageDisplay = document.getElementById('message');
+        const nextRoundButton = document.getElementById('nextRoundButton');
+
+        // 結果発表ページ要素
+        const resultsPage = document.getElementById('results-page');
+        const resultsPageTitle = document.getElementById('resultsPageTitle');
+        const roundResultsList = document.getElementById('roundResultsList');
+        const overallScoresDisplay = document.getElementById('overallScores');
+        const overallWinnerDisplay = document.getElementById('overallWinner');
+        const playAgainButton = document.getElementById('playAgainButton');
+
+        // ルール説明ページ要素
+        const rulesPage = document.getElementById('rules-page'); // New
+        const rulesPageTitle = document.getElementById('rulesPageTitle'); // New
+        const rulesContent = document.getElementById('rulesContent'); // New
+        const backToMainButton = document.getElementById('backToMainButton'); // New
+
+
+        // --- ページ表示制御関数 ---
+        function showPage(pageId) {
+            const pages = [mainTopPage, startPage, gamePage, resultsPage, rulesPage]; // rulesPageを追加
+            pages.forEach(page => {
+                if (page.id === pageId) {
+                    page.classList.remove('hidden-page');
+                    page.classList.add('fade-in'); // フェードインアニメーションを追加
+                } else {
+                    page.classList.add('hidden-page');
+                    page.classList.remove('fade-in'); // 他のページからアニメーションクラスを削除
+                }
+            });
+            updateUIForLanguage(); // ページ表示時に言語を更新
+        }
+
+        // --- Tone.js 初期化とサウンド関数 ---
+        function initializeAudio() {
+            // マスターボリュームノード
+            masterVolumeNode = new Tone.Volume(Tone.gainToDb(parseFloat(masterVolumeInput.value))).toDestination();
+
+            // 正解音 (C5)
+            correctSynth = new Tone.Synth({
+                oscillator: { type: "sine" },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.1,
+                    sustain: 0.05,
+                    release: 0.5,
+                }
+            }).connect(masterVolumeNode);
+
+            // 不正解音 (C4)
+            incorrectSynth = new Tone.Synth({
+                oscillator: { type: "triangle" },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.1,
+                    sustain: 0.05,
+                    release: 0.5,
+                }
+            }).connect(masterVolumeNode);
+
+            // ラウンド終了音 (G4)
+            roundEndSynth = new Tone.Synth({
+                oscillator: { type: "sawtooth" },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.2,
+                    sustain: 0.1,
+                    release: 0.8,
+                }
+            }).connect(masterVolumeNode);
+
+            // BGM用シンセ (PolySynthでより豊かなサウンドに)
+            bgmSynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "square" }, // 8-bit感のある矩形波
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.1,
+                    sustain: 0.2,
+                    release: 0.5,
+                }
+            }).connect(masterVolumeNode);
+
+            // BGMのメロディ (よりゲームらしいパターン)
+            // Cメジャーのシンプルなメロディ
+            const bgmNotes = [
+                { time: "0:0:0", note: "C4", duration: "8n" },
+                { time: "0:0:2", note: "E4", duration: "8n" },
+                { time: "0:1:0", note: "G4", duration: "8n" },
+                { time: "0:1:2", note: "C5", duration: "8n" },
+                { time: "0:2:0", note: "G4", duration: "8n" },
+                { time: "0:2:2", note: "E4", duration: "8n" },
+                { time: "0:3:0", note: "C4", duration: "8n" },
+                { time: "0:3:2", note: "G3", duration: "8n" },
+
+                { time: "1:0:0", note: "A3", duration: "8n" },
+                { time: "1:0:2", note: "C4", duration: "8n" },
+                { time: "1:1:0", note: "E4", duration: "8n" },
+                { time: "1:1:2", note: "A4", duration: "8n" },
+                { time: "1:2:0", note: "F4", duration: "8n" },
+                { time: "1:2:2", note: "D4", duration: "8n" },
+                { time: "1:3:0", note: "B3", duration: "8n" },
+                { time: "1:3:2", note: "G3", duration: "8n" },
+
+                { time: "2:0:0", note: "C4", duration: "8n" },
+                { time: "2:0:2", note: "C4", duration: "8n" },
+                { time: "2:1:0", note: "D4", duration: "8n" },
+                { time: "2:1:2", note: "E4", duration: "8n" },
+                { time: "2:2:0", note: "F4", duration: "8n" },
+                { time: "2:2:2", note: "E4", duration: "8n" },
+                { time: "2:3:0", note: "D4", duration: "8n" },
+                { time: "2:3:2", note: "C4", duration: "8n" },
+
+                { time: "3:0:0", note: "G3", duration: "4n" },
+                { time: "3:1:0", note: "C4", duration: "4n" },
+                { time: "3:2:0", note: "E4", duration: "4n" },
+                { time: "3:3:0", note: "G4", duration: "4n" }
+            ];
+
+            bgmSequence = new Tone.Part((time, value) => {
+                bgmSynth.triggerAttackRelease(value.note, value.duration, time);
+            }, bgmNotes).start(0);
+
+            bgmSequence.loop = true;
+            bgmSequence.loopEnd = "4m"; // 4小節でループ
+            Tone.Transport.bpm.value = 140; // 少し速めのBPM
+        }
+
+        function playCorrectSound() {
+            if (correctSynth) correctSynth.triggerAttackRelease("C5", "8n");
+        }
+
+        function playIncorrectSound() {
+            if (incorrectSynth) incorrectSynth.triggerAttackRelease("C4", "8n");
+        }
+
+        function playRoundEndSound() {
+            if (roundEndSynth) roundEndSynth.triggerAttackRelease("G4", "4n");
+        }
+
+        function startBGM() {
+            if (!isBGMPlaying) {
+                Tone.Transport.start(); // Tone.Transportを開始
+                bgmSequence.start(0); // 最初から再生
+                isBGMPlaying = true;
+            }
+        }
+
+        function stopBGM() {
+            if (isBGMPlaying) {
+                bgmSequence.stop();
+                Tone.Transport.stop(); // Tone.Transportを停止
+                isBGMPlaying = false;
+            }
+        }
+
+        function toggleBGM() {
+            // この関数はbgmToggleの変更時に呼ばれるが、
+            // BGMの開始はstartGameButtonのクリックイベントに集約する
+            if (!bgmToggle.checked) {
+                stopBGM(); // オフになった場合は停止
+            }
+        }
+
+        // --- 言語更新関数 ---
+        function updateUIForLanguage() {
+            const lang = textStrings[currentLanguage];
+
+            // body要素に言語に応じたクラスを付与/削除
+            if (currentLanguage === 'ja') {
+                document.body.classList.add('font-japanese-pixel');
+            } else {
+                document.body.classList.remove('font-japanese-pixel');
+            }
+
+            // トップページ
+            mainTopPageTitle.textContent = lang.gameTitle;
+            mainTopPageMessage.textContent = lang.welcomeMessage;
+            goToSettingsButton.textContent = lang.startGameButton;
+            goToRulesButton.textContent = lang.rulesButton; // New
+            languageSettingsLabelMain.textContent = lang.languageSettingsLabel; // トップページの言語設定ラベル
+
+            // ゲーム設定ページ
+            settingsPageTitle.textContent = lang.settingsTitle;
+            playModeLabel.textContent = lang.playModeLabel;
+            multiplayerModeSpan.textContent = lang.multiplayerMode;
+            cpuModeSpan.textContent = lang.cpuMode;
+            singleplayerModeSpan.textContent = lang.singleplayerMode;
+            playerNameLabel.textContent = lang.playerNameLabel;
+            addPlayerButton.textContent = lang.addPlayerButton;
+            numberRangeLabel.textContent = lang.numberRangeLabel;
+            range100Option.textContent = lang.range100;
+            range500Option.textContent = lang.range500;
+            range1000Option.textContent = lang.range1000;
+            attemptLimitLabel.textContent = lang.attemptLimitLabel;
+            unlimitedAttemptsOption.textContent = lang.unlimitedAttempts;
+            fixedAttemptsOption.textContent = lang.fixedAttempts;
+            customAttemptLimitInput.placeholder = lang.customAttemptPlaceholder;
+            totalRoundsLabel.textContent = lang.totalRoundsLabel;
+            round1Option.textContent = lang.round1;
+            round3Option.textContent = lang.round3;
+            round5Option.textContent = lang.round5;
+            startGameButtonSettings.textContent = lang.startGameButtonSettings;
+            volumeSettingsLabel.textContent = lang.volumeSettingsLabel;
+            bgmToggleLabel.textContent = lang.bgmToggleLabel; // BGMトグルラベルの更新
+
+            // ゲームページ
+            gamePageTitle.textContent = lang.gameTitle;
+            submitGuessButton.textContent = lang.submitGuessButton;
+            guessInput.placeholder = lang.guessInputPlaceholder;
+            nextRoundButton.textContent = lang.nextRoundButton;
+
+            // 結果発表ページ
+            resultsPageTitle.textContent = lang.resultsTitle;
+            playAgainButton.textContent = lang.playAgainButton;
+
+            // ルール説明ページ
+            rulesPageTitle.textContent = lang.rulesPageTitle; // New
+            rulesContent.innerHTML = lang.rulesContent; // New
+            backToMainButton.textContent = lang.backButton; // New
+
+            // 動的に更新されるテキスト (例: roundDisplay, currentPlayerDisplay, rangeInfo, messageDisplay)
+            roundDisplay.textContent = lang.roundDisplayPrefix + currentRound + lang.roundDisplaySuffix;
+            if (players.length > 0 && currentPlayerIndex !== undefined && players[currentPlayerIndex]) {
+                currentPlayerDisplay.textContent = players[currentPlayerIndex].name + lang.currentPlayerTurnSuffix;
+            } else {
+                currentPlayerDisplay.textContent = '';
+            }
+            rangeInfo.textContent = lang.rangeInfoPrefix + selectedRangeMax + lang.rangeInfoSuffix;
+        }
+
+        // --- プレイヤー管理 ---
+
+        // プレイヤー入力フィールドを追加する関数
+        function addPlayerInput(playerName = '') {
+            const playerInputWrapper = document.createElement('div');
+            playerInputWrapper.classList.add('flex', 'items-center', 'mb-2');
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.classList.add('player-name-input', 'w-full', 'p-3', 'border-2', 'border-blue-300', 'rounded-lg', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-200', 'text-lg', 'text-gray-700');
+            input.value = playerName;
+            input.placeholder = `${textStrings[currentLanguage].playerNameLabel.replace(':', '')}${document.querySelectorAll('.player-name-input').length + 1}`;
+
+            const removeButton = document.createElement('button');
+            removeButton.classList.add('remove-player-btn', 'ml-2', 'p-2', 'bg-red-500', 'text-white', 'rounded-full', 'text-sm', 'font-bold');
+            removeButton.textContent = '-';
+            removeButton.addEventListener('click', () => {
+                playerInputWrapper.remove();
+                updateRemoveButtonsVisibility(); // 削除ボタンの表示/非表示を更新
+            });
+
+            playerInputWrapper.appendChild(input);
+            playerInputWrapper.appendChild(removeButton);
+            playersContainer.appendChild(playerInputWrapper);
+
+            updateRemoveButtonsVisibility(); // 削除ボタンの表示/非表示を更新
+        }
+
+        // プレイヤー削除ボタンの表示/非表示を更新する関数
+        function updateRemoveButtonsVisibility() {
+            const removeButtons = document.querySelectorAll('.remove-player-btn');
+            const playerNameInputs = document.querySelectorAll('.player-name-input');
+
+            if (playerNameInputs.length <= 2) { // プレイヤーが2人以下の場合は削除ボタンを非表示
+                removeButtons.forEach(button => button.classList.add('hidden'));
+            } else { // プレイヤーが3人以上の場合は削除ボタンを表示
+                removeButtons.forEach(button => button.classList.remove('hidden'));
+            }
+        }
+
+        // プレイモード選択時のUI更新
+        function updatePlayerInputsVisibility(mode) {
+            const playerNameInputs = document.querySelectorAll('.player-name-input');
+            const removePlayerButtons = document.querySelectorAll('.remove-player-btn');
+
+            if (mode === 'multiplayer') {
+                playersContainer.style.display = 'block';
+                addPlayerButton.style.display = 'block';
+                updateRemoveButtonsVisibility(); // 既存のボタンの表示を更新
+            } else {
+                playersContainer.style.display = 'block'; // コンテナ自体は表示
+                addPlayerButton.style.display = 'none'; // 追加ボタンは非表示
+
+                // 既存のプレイヤー入力をクリアし、1つだけ残す
+                while (playersContainer.children.length > 1) {
+                    playersContainer.removeChild(playersContainer.lastChild);
+                }
+                // 最初のinputのvalueをリセット
+                playerNameInputs[0].value = (mode === 'cpu') ? textStrings[currentLanguage].cpuMode.split('(')[0].trim() : textStrings[currentLanguage].singleplayerMode.split('(')[0].trim();
+                removePlayerButtons[0].classList.add('hidden'); // 最初の削除ボタンは常に非表示
+            }
+        }
+
+        // --- ゲームの初期化とラウンド管理 ---
+
+        // ゲーム全体の初期化（トップページから開始）
+        function initializeGame() {
+            // ゲーム設定をリセット
+            playerScores = {};
+            roundResults = [];
+            currentRound = 0;
+
+            // BGMが再生中であれば停止
+            if (isBGMPlaying) {
+                stopBGM();
+            }
+
+            // プレイヤー入力フィールドを初期化 (デフォルトで2人)
+            playersContainer.innerHTML = ''; // 既存のプレイヤー入力をクリア
+            addPlayerInput('プレイヤー1');
+            addPlayerInput('プレイヤー2');
+            updatePlayerInputsVisibility('multiplayer'); // デフォルトでマルチプレイヤーモードのUIに
+
+            // ゲーム設定の初期値をセット
+            playModeRadios[0].checked = true; // みんなでプレイをデフォルトに
+            numberRangeSelect.value = "100";
+            attemptLimitTypeSelect.value = "unlimited"; // 試行回数制限なしをデフォルトに
+            customAttemptLimitInput.style.display = 'none'; // カスタム入力は非表示
+            customAttemptLimitInput.value = defaultFixedAttempts; // デフォルト値をセット
+            totalRoundsSelect.value = "1";
+            startPageMessage.style.display = 'none'; // エラーメッセージをクリア
+
+            // 音量と言語の初期設定
+            masterVolumeInput.value = "0.5"; // デフォルト音量
+            bgmToggle.checked = true; // BGMトグルをデフォルトでオンに
+            languageSelectMain.value = "ja"; // トップページの言語選択をデフォルトに
+            currentLanguage = "ja";
+
+            initializeAudio(); // Tone.jsの初期化
+            showPage('main-top-page'); // トップページを表示
+        }
+
+        // 各ラウンドの初期化
+        function initializeRound() {
+            currentRound++; // 回戦数をインクリメント
+            randomNumber = Math.floor(Math.random() * selectedRangeMax) + 1; // 選択された範囲で乱数を生成
+            totalAttemptsThisRound = 0;
+            currentPlayerIndex = 0; // 最初のプレイヤーから開始
+
+            // 試行回数制限の設定
+            if (attemptLimitType === 'unlimited') {
+                currentMaxAttemptsPerRound = Infinity;
+            } else { // fixed
+                currentMaxAttemptsPerRound = parseInt(customAttemptLimitInput.value) || defaultFixedAttempts;
+            }
+
+            // CPUの範囲を初期化
+            cpuMinRange = 1;
+            cpuMaxRange = selectedRangeMax;
+
+            // UIの更新
+            roundDisplay.textContent = textStrings[currentLanguage].roundDisplayPrefix + currentRound + textStrings[currentLanguage].roundDisplaySuffix;
+            if (players.length > 0 && currentPlayerIndex !== undefined && players[currentPlayerIndex]) {
+                currentPlayerDisplay.textContent = players[currentPlayerIndex].name + textStrings[currentLanguage].currentPlayerTurnSuffix;
+            } else {
+                currentPlayerDisplay.textContent = '';
+            }
+            rangeInfo.textContent = textStrings[currentLanguage].rangeInfoPrefix + selectedRangeMax + textStrings[currentLanguage].rangeInfoSuffix;
+            messageDisplay.textContent = '';
+            guessInput.value = '';
+            guessInput.min = 1;
+            guessInput.max = selectedRangeMax;
+            guessInput.disabled = false;
+            submitGuessButton.disabled = false;
+            nextRoundButton.style.display = 'none'; // 次へボタンを非表示
+
+            console.log(`第${currentRound}回戦開始！秘密の数字は: ${randomNumber}`); // デバッグ用
+
+            // もしCPUモードでCPUが最初のプレイヤーなら、CPUのターンを開始
+            if (playMode === 'cpu' && players[currentPlayerIndex].name === 'CPU') {
+                setTimeout(cpuTurn, 1000); // 少し遅延させてCPUの思考を表現
+            }
+        }
+
+        // --- イベントハンドラ ---
+
+        // 「ゲームを始める」ボタンクリック時の処理 (トップページからゲーム設定ページへ)
+        goToSettingsButton.addEventListener('click', async () => {
+            // ユーザー操作でオーディオコンテキストを開始
+            if (Tone.context.state !== 'running') {
+                await Tone.start();
+            }
+            showPage('start-page');
+            // ここではBGMを再生しない
+        });
+
+        // 「ルール説明」ボタンクリック時の処理 (トップページからルール説明ページへ)
+        goToRulesButton.addEventListener('click', async () => { // New
+            if (Tone.context.state !== 'running') {
+                await Tone.start();
+            }
+            showPage('rules-page');
+            // ルール説明ページではBGMを停止するかどうかは要件によるが、ここではそのままにする
+        });
+
+        // 「戻る」ボタンクリック時の処理 (ルール説明ページからトップページへ)
+        backToMainButton.addEventListener('click', () => { // New
+            showPage('main-top-page');
+        });
+
+        // プレイモードラジオボタンの変更イベント
+        playModeRadios.forEach(radio => {
+            radio.addEventListener('change', (event) => {
+                playMode = event.target.value;
+                updatePlayerInputsVisibility(playMode);
+            });
+        });
+
+        // 「プレイヤーを追加」ボタンクリック時の処理
+        addPlayerButton.addEventListener('click', () => {
+            addPlayerInput(`${textStrings[currentLanguage].playerNameLabel.replace(':', '')}${document.querySelectorAll('.player-name-input').length + 1}`);
+        });
+
+        // 試行回数制限タイプの選択変更イベント
+        attemptLimitTypeSelect.addEventListener('change', (event) => {
+            if (event.target.value === 'fixed') {
+                customAttemptLimitInput.style.display = 'block';
+            } else {
+                customAttemptLimitInput.style.display = 'none';
+            }
+        });
+
+        // 音量スライダーの変更イベント
+        masterVolumeInput.addEventListener('input', (event) => {
+            if (masterVolumeNode) {
+                masterVolumeNode.set({ volume: Tone.gainToDb(parseFloat(event.target.value)) });
+            }
+        });
+
+        // BGMトグルの変更イベント
+        bgmToggle.addEventListener('change', toggleBGM);
+
+        // トップページの言語選択の変更イベント
+        languageSelectMain.addEventListener('change', (event) => {
+            currentLanguage = event.target.value;
+            updateUIForLanguage();
+            // プレイヤー名のプレースホルダーも更新するために、プレイヤー入力の表示を更新
+            updatePlayerInputsVisibility(playMode);
+        });
+
+        // 「ゲーム開始」ボタンクリック時の処理 (ゲーム設定ページからゲームページへ)
+        startGameButton.addEventListener('click', () => {
+            // プレイヤー名を収集
+            players = [];
+            if (playMode === 'singleplayer') {
+                const humanName = document.querySelector('.player-name-input').value.trim() || textStrings[currentLanguage].singleplayerMode.split('(')[0].trim();
+                players.push({ id: 0, name: humanName, score: 0 });
+                playerScores = { [humanName]: 0 };
+            } else if (playMode === 'cpu') {
+                const humanName = document.querySelector('.player-name-input').value.trim() || textStrings[currentLanguage].cpuMode.split('(')[0].trim();
+                players.push({ id: 0, name: humanName, score: 0 });
+                players.push({ id: 1, name: "CPU", score: 0 }); // CPUプレイヤーを追加
+                playerScores = { [humanName]: 0, "CPU": 0 };
+            } else { // multiplayer
+                document.querySelectorAll('.player-name-input').forEach((input, index) => {
+                    const name = input.value.trim() || `${textStrings[currentLanguage].playerNameLabel.replace(':', '')}${index + 1}`;
+                    players.push({ id: index, name: name, score: 0 });
+                    playerScores[name] = 0;
+                });
+
+                if (players.length < 2) {
+                    startPageMessage.textContent = textStrings[currentLanguage].settingsErrorMessageMultiplayer;
+                    startPageMessage.style.display = 'block';
+                    return;
+                }
+            }
+
+            startPageMessage.style.display = 'none'; // エラーメッセージをクリア
+
+            selectedRangeMax = parseInt(numberRangeSelect.value);
+            totalRounds = parseInt(totalRoundsSelect.value);
+            attemptLimitType = attemptLimitTypeSelect.value; // 試行回数制限タイプを保存
+
+            // カスタム試行回数のバリデーション
+            if (attemptLimitType === 'fixed') {
+                const customValue = parseInt(customAttemptLimitInput.value);
+                if (isNaN(customValue) || customValue < 1) {
+                    startPageMessage.textContent = textStrings[currentLanguage].settingsErrorMessageAttempts;
+                    startPageMessage.style.display = 'block';
+                    return;
+                }
+            }
+
+            // BGMトグルがオンの場合のみBGMを再生開始
+            if (bgmToggle.checked) {
+                startBGM();
+            } else {
+                stopBGM();
+            }
+
+            showPage('game-page'); // ゲームページへ移動
+            initializeRound(); // 最初のラウンドを開始
+        });
+
+        // 「予想を送信」ボタンクリック時の処理
+        submitGuessButton.addEventListener('click', checkGuess);
+
+        // Enterキーで予想を送信できるようにする
+        guessInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                checkGuess();
+            }
+        });
+
+        // 「次へ」ボタンクリック時の処理（次のラウンドへ、または結果発表へ）
+        nextRoundButton.addEventListener('click', () => {
+            if (currentRound < totalRounds) {
+                initializeRound(); // 次のラウンドを開始
+            } else {
+                showResults(); // 全てのラウンドが終了したら結果発表へ
+            }
+        });
+
+        // 「もう一度プレイ」ボタンクリック時の処理 (結果発表ページからトップページへ)
+        playAgainButton.addEventListener('click', initializeGame);
+
+        // --- ゲームロジック ---
+
+        // 予想をチェックする関数 (人間プレイヤーのターン)
+        function checkGuess() {
+            const userGuess = parseInt(guessInput.value);
+            const currentPlayerName = players[currentPlayerIndex].name;
+
+            // 入力値のバリデーション
+            if (isNaN(userGuess) || userGuess < 1 || userGuess > selectedRangeMax) {
+                messageDisplay.textContent = textStrings[currentLanguage].messageInvalidInput(selectedRangeMax);
+                messageDisplay.classList.remove('text-green-600', 'text-red-600');
+                messageDisplay.classList.add('text-yellow-600');
+                return;
+            }
+
+            totalAttemptsThisRound++;
+
+            if (userGuess === randomNumber) {
+                playCorrectSound(); // 正解音
+                messageDisplay.textContent = textStrings[currentLanguage].messageCorrect(currentPlayerName, totalAttemptsThisRound, randomNumber);
+                messageDisplay.classList.remove('text-yellow-600', 'text-red-600');
+                messageDisplay.classList.add('text-green-600');
+                
+                // スコアと結果を記録
+                playerScores[currentPlayerName]++;
+                roundResults.push({
+                    round: currentRound,
+                    winner: currentPlayerName,
+                    attempts: totalAttemptsThisRound,
+                    secretNumber: randomNumber
+                });
+                endRound();
+            } else if (totalAttemptsThisRound >= currentMaxAttemptsPerRound) {
+                playIncorrectSound(); // 不正解音
+                messageDisplay.textContent = textStrings[currentLanguage].messageAttemptsExceeded(randomNumber);
+                messageDisplay.classList.remove('text-yellow-600', 'text-green-600');
+                messageDisplay.classList.add('text-red-600');
+                
+                // 結果を記録（引き分け）
+                roundResults.push({
+                    round: currentRound,
+                    winner: '引き分け',
+                    attempts: totalAttemptsThisRound,
+                    secretNumber: randomNumber
+                });
+                endRound();
+            } else if (userGuess < randomNumber) {
+                playIncorrectSound(); // 不正解音
+                let remainingAttemptsMessage = (currentMaxAttemptsPerRound === Infinity) ? '' : textStrings[currentLanguage].messageRemainingAttempts(currentMaxAttemptsPerRound - totalAttemptsThisRound);
+                messageDisplay.textContent = textStrings[currentLanguage].messageTooLow(remainingAttemptsMessage);
+                messageDisplay.classList.remove('text-green-600', 'text-red-600');
+                messageDisplay.classList.add('text-yellow-600');
+                // CPUの範囲を更新
+                if (playMode === 'cpu' && players[currentPlayerIndex].name === 'CPU') {
+                    cpuMinRange = userGuess + 1;
+                }
+            } else {
+                playIncorrectSound(); // 不正解音
+                let remainingAttemptsMessage = (currentMaxAttemptsPerRound === Infinity) ? '' : textStrings[currentLanguage].messageRemainingAttempts(currentMaxAttemptsPerRound - totalAttemptsThisRound);
+                messageDisplay.textContent = textStrings[currentLanguage].messageTooHigh(remainingAttemptsMessage);
+                messageDisplay.classList.remove('text-green-600', 'text-red-600');
+                messageDisplay.classList.add('text-yellow-600');
+                // CPUの範囲を更新
+                if (playMode === 'cpu' && players[currentPlayerIndex].name === 'CPU') {
+                    cpuMaxRange = userGuess - 1;
+                }
+            }
+
+            guessInput.value = ''; // 予想後に入力フィールドをクリア
+
+            // 次のプレイヤーに交代（正解した場合や試行回数上限に達した場合は交代しない）
+            if (userGuess !== randomNumber && totalAttemptsThisRound < currentMaxAttemptsPerRound) {
+                // シングルプレイヤーモードの場合は交代しない
+                if (playMode !== 'singleplayer') {
+                    currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+                    const nextPlayerName = players[currentPlayerIndex].name;
+                    currentPlayerDisplay.textContent = nextPlayerName + textStrings[currentLanguage].currentPlayerTurnSuffix;
+
+                    // CPUモードで、次のプレイヤーがCPUの場合、CPUのターンを実行
+                    if (playMode === 'cpu' && players[currentPlayerIndex].name === 'CPU') {
+                        submitGuessButton.disabled = true; // CPUのターン中はボタンを無効化
+                        guessInput.disabled = true; // CPUのターン中は入力フィールドを無効化
+                        setTimeout(cpuTurn, 1500); // 少し遅延させてCPUの思考を表現
+                    } else {
+                        submitGuessButton.disabled = false; // 人間のターンではボタンを有効化
+                        guessInput.disabled = false; // 人間のターンでは入力フィールドを有効化
+                        guessInput.focus(); // 入力フィールドにフォーカス
+                    }
+                }
+            }
+        }
+
+        // CPUのターン
+        function cpuTurn() {
+            // CPUの思考ロジック (二分探索)
+            let cpuGuess;
+            if (cpuMinRange > cpuMaxRange) { // 範囲が逆転した場合の安全策
+                cpuGuess = Math.floor(Math.random() * selectedRangeMax) + 1; // ランダムに予想
+            } else {
+                cpuGuess = Math.floor((cpuMinRange + cpuMaxRange) / 2);
+            }
+
+            // 予想が入力範囲外にならないように調整
+            cpuGuess = Math.max(1, Math.min(selectedRangeMax, cpuGuess));
+
+            totalAttemptsThisRound++; // CPUの試行回数をカウント
+
+            messageDisplay.textContent = textStrings[currentLanguage].cpuGuess(cpuGuess);
+            messageDisplay.classList.remove('text-green-600', 'text-red-600');
+            messageDisplay.classList.add('text-yellow-600'); // CPUの予想は黄色で表示
+
+            if (cpuGuess === randomNumber) {
+                playCorrectSound(); // 正解音
+                messageDisplay.textContent = textStrings[currentLanguage].cpuCorrect(totalAttemptsThisRound, randomNumber);
+                messageDisplay.classList.remove('text-yellow-600', 'text-red-600');
+                messageDisplay.classList.add('text-red-600'); // 負けたので赤
+                playerScores['CPU']++;
+                roundResults.push({
+                    round: currentRound,
+                    winner: 'CPU',
+                    attempts: totalAttemptsThisRound,
+                    secretNumber: randomNumber
+                });
+                endRound();
+            } else if (totalAttemptsThisRound >= currentMaxAttemptsPerRound) {
+                playIncorrectSound(); // 不正解音
+                messageDisplay.textContent = textStrings[currentLanguage].messageAttemptsExceeded(randomNumber);
+                messageDisplay.classList.remove('text-yellow-600', 'text-green-600');
+                messageDisplay.classList.add('text-red-600');
+                roundResults.push({
+                    round: currentRound,
+                    winner: '引き分け',
+                    attempts: totalAttemptsThisRound,
+                    secretNumber: randomNumber
+                });
+                endRound();
+            } else if (cpuGuess < randomNumber) {
+                playIncorrectSound(); // 不正解音
+                let remainingAttemptsMessage = (currentMaxAttemptsPerRound === Infinity) ? '' : textStrings[currentLanguage].messageRemainingAttempts(currentMaxAttemptsPerRound - totalAttemptsThisRound);
+                messageDisplay.textContent += textStrings[currentLanguage].messageTooLow(remainingAttemptsMessage);
+                cpuMinRange = cpuGuess + 1; // 範囲を更新
+            } else { // cpuGuess > randomNumber
+                playIncorrectSound(); // 不正解音
+                let remainingAttemptsMessage = (currentMaxAttemptsPerRound === Infinity) ? '' : textStrings[currentLanguage].messageRemainingAttempts(currentMaxAttemptsPerRound - totalAttemptsThisRound);
+                messageDisplay.textContent += textStrings[currentLanguage].messageTooHigh(remainingAttemptsMessage);
+                cpuMaxRange = cpuGuess - 1; // 範囲を更新
+            }
+
+            // CPUのターンが終わったら、プレイヤーのターンに戻る
+            if (cpuGuess !== randomNumber && totalAttemptsThisRound < currentMaxAttemptsPerRound) {
+                // シングルプレイヤーモードの場合は交代しない
+                if (playMode !== 'singleplayer') {
+                    currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+                    const nextPlayerName = players[currentPlayerIndex].name;
+                    currentPlayerDisplay.textContent = nextPlayerName + textStrings[currentLanguage].currentPlayerTurnSuffix;
+                    submitGuessButton.disabled = false; // 人間のターンではボタンを有効化
+                    guessInput.disabled = false; // 人間のターンでは入力フィールドを有効化
+                    guessInput.focus(); // 入力フィールドにフォーカス
+                }
+            }
+        }
+
+        // ラウンド終了時の処理
+        function endRound() {
+            playRoundEndSound(); // ラウンド終了音
+            guessInput.disabled = true; // 入力フィールドを無効化
+            submitGuessButton.disabled = true; // 送信ボタンを無効化
+            nextRoundButton.style.display = 'block'; // 次へボタンを表示
+            currentPlayerDisplay.textContent = textStrings[currentLanguage].roundEnd;
+        }
+
+        // 結果発表ページを表示する関数
+        function showResults() {
+            showPage('results-page');
+            roundResultsList.innerHTML = ''; // リストをクリア
+            overallScoresDisplay.innerHTML = ''; // 総合スコアをクリア
+
+            // 各ラウンドの結果を表示
+            roundResults.forEach(result => {
+                const p = document.createElement('p');
+                p.classList.add('text-lg', 'text-gray-700', 'mb-2');
+                if (result.winner === '引き分け') {
+                    p.innerHTML = textStrings[currentLanguage].roundResultDraw(result.round, result.secretNumber);
+                } else {
+                    p.innerHTML = textStrings[currentLanguage].roundResult(result.round, result.winner, result.attempts, result.secretNumber);
+                }
+                roundResultsList.appendChild(p);
+            });
+
+            if (playMode === 'singleplayer') {
+                overallScoresDisplay.innerHTML = `
+                    <h3 class="text-2xl font-bold text-gray-800 mt-6 mb-4">${textStrings[currentLanguage].singleplayerRecordTitle}</h3>
+                    <p class="text-xl text-gray-700 mb-1">${textStrings[currentLanguage].singleplayerTotalAttempts(roundResults.reduce((sum, r) => sum + r.attempts, 0))}</p>
+                    <p class="text-xl text-gray-700 mb-1">${textStrings[currentLanguage].singleplayerCorrectGuesses(roundResults.filter(r => r.winner !== '引き分け').length)}</p>
+                `;
+                overallWinnerDisplay.textContent = textStrings[currentLanguage].singleplayerGameEnd;
+                overallWinnerDisplay.classList.remove('text-green-700', 'text-red-700');
+                overallWinnerDisplay.classList.add('text-gray-700'); // 中立色
+            } else { // multiplayer or cpu
+                const scoreTitle = document.createElement('h3');
+                scoreTitle.classList.add('text-2xl', 'font-bold', 'text-gray-800', 'mt-6', 'mb-4');
+                scoreTitle.textContent = textStrings[currentLanguage].overallScoreTitle;
+                overallScoresDisplay.appendChild(scoreTitle);
+
+                // スコアをソートして表示 (降順)
+                const sortedScores = Object.entries(playerScores).sort(([, scoreA], [, scoreB]) => scoreB - scoreA);
+                sortedScores.forEach(([playerName, score]) => {
+                    const p = document.createElement('p');
+                    p.classList.add('text-xl', 'text-gray-700', 'mb-1');
+                    p.textContent = `${playerName}: ${score}勝`;
+                    overallScoresDisplay.appendChild(p);
+                });
+
+                const maxScore = Math.max(...Object.values(playerScores));
+                const winners = Object.keys(playerScores).filter(name => playerScores[name] === maxScore);
+
+                if (winners.length === 1) {
+                    overallWinnerDisplay.textContent = textStrings[currentLanguage].overallWinner(winners[0]);
+                    overallWinnerDisplay.classList.remove('text-red-700', 'text-gray-700');
+                    overallWinnerDisplay.classList.add('text-green-700');
+                } else {
+                    overallWinnerDisplay.textContent = textStrings[currentLanguage].overallDraw;
+                    overallWinnerDisplay.classList.remove('text-green-700', 'text-red-700');
+                    overallWinnerDisplay.classList.add('text-gray-700');
+                }
+            }
+        }
+
+        // ページロード時にゲームを初期化してトップページを表示
+        window.onload = initializeGame;
+    </script>
+</body>
+</html>
